@@ -269,7 +269,8 @@ else
 fi
 
 # Log file errors (check for command failures logged by run_cmd)
-LOG_ERRORS=$(grep -c "WARNING: Command exited with code" "$LOG_FILE" 2>/dev/null || echo 0)
+LOG_ERRORS=$(grep -c "WARNING: Command exited with code" "$LOG_FILE" 2>/dev/null)
+LOG_ERRORS=${LOG_ERRORS:-0}
 if [ "$LOG_ERRORS" -gt 0 ]; then
     check_fail "Log file contains ${LOG_ERRORS} command failure(s) — review $LOG_FILE"
 else
