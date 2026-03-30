@@ -13,6 +13,7 @@ Template repository for native UAV Neo installation on local computer
   - [Simulator won't connect (Windows/WSL2)](#simulator-wont-connect-windowswsl2)
   - [Python 3.9 fails to install](#python-39-fails-to-install)
   - [Virtual environment issues](#virtual-environment-issues)
+  - [WSL1 vs WSL2](#wsl1-vs-wsl2)
   - [drone command not found](#drone-command-not-found)
 
 ---
@@ -293,6 +294,37 @@ source drone-venv/bin/activate
 pip install --upgrade pip
 pip install -r drone-student/scripts/requirements.txt
 ```
+
+### WSL1 vs WSL2
+
+UAV Neo works with both WSL1 and WSL2, but **WSL2 is recommended**. WSL1 shares the Windows network stack directly (the simulator is reachable at `127.0.0.1`), while WSL2 uses a virtual network that may require firewall configuration. Some diagnostic features (firewall checks, adapter detection) may not work on WSL1.
+
+To check your version, open PowerShell and run:
+
+```powershell
+wsl -l -v
+```
+
+If you want to upgrade to WSL2, run the following in **PowerShell as Administrator**:
+
+```powershell
+# Enable the Virtual Machine Platform feature
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+# Restart your computer, then open PowerShell as Administrator again
+
+# Set WSL2 as the default version
+wsl --set-default-version 2
+
+# Convert your existing distro (replace "Ubuntu" with your distro name from wsl -l -v)
+wsl --set-version Ubuntu 2
+```
+
+**Requirements:**
+- Windows 10 version 1903+ (build 18362+) or Windows 11
+- Virtualization must be enabled in BIOS (VT-x / AMD-V)
+
+The conversion can take a few minutes. No data is lost. After completing, verify with `wsl -l -v` that the VERSION column shows `2`.
 
 ### drone command not found
 
