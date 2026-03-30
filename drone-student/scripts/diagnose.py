@@ -21,6 +21,18 @@ def resolve_sim_ip():
     if env_ip:
         return env_ip, "DRONE_SIM_IP env var"
 
+    # Check if we are running in WSL2
+    is_wsl2 = False
+    try:
+        with open("/proc/version") as f:
+            is_wsl2 = "microsoft" in f.read().lower()
+    except OSError:
+        pass
+
+    if not is_wsl2:
+        return "127.0.0.1", "localhost (not WSL2)"
+
+    # In WSL2: read default gateway from /proc/net/route
     try:
         with open("/proc/net/route") as f:
             for line in f:
@@ -30,7 +42,13 @@ def resolve_sim_ip():
                     ip = ".".join(
                         str(int(hex_ip[i : i + 2], 16)) for i in range(6, -1, -2)
                     )
-                    return ip, "/proc/net/route (WSL2 gateway)"
+                    # Hyper-V NAT gateways live in 172.16.0.0/12
+                    first_octet = int(hex_ip[6:8], 16)
+                    second_octet = int(hex_ip[4:6], 16)
+                    if first_octet == 172 and 16 <= second_octet <= 31:
+                        return ip, "WSL2 NAT mode (Hyper-V gateway)"
+                    # Gateway outside Hyper-V range — likely mirrored mode
+                    return "127.0.0.1", "WSL2 mirrored mode (localhost)"
     except (OSError, IndexError, ValueError):
         pass
 
