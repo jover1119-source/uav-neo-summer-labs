@@ -76,6 +76,33 @@ log_silent "======================================"
 log 'Welcome to the UAV Neo Drone command-line installer for Windows, Mac, and Linux.'
 log "Setup log: $LOG_FILE"
 
+# Check if setup has already been run
+ALREADY_INSTALLED=false
+if [ -f "${SCRIPT_DIR}/.local_bashrc.sh" ] || [ -d "${NEO_DIR}/drone-venv" ] || [ -d "${NEO_DIR}/UAVNeo-Simulator" ]; then
+    ALREADY_INSTALLED=true
+fi
+
+if [ "$ALREADY_INSTALLED" = true ]; then
+    echo ""
+    echo -e "\e[1;31m=========================================================================="
+    echo "[ERROR] A previous installation was detected."
+    echo "=========================================================================="
+    echo ""
+    echo "Running setup again can cause nested or duplicate folders."
+    echo "To reinstall, delete the entire uav-neo-installer folder and start fresh:"
+    echo ""
+    echo "  rm -rf ${NEO_DIR}"
+    echo "  git clone https://github.com/MITUavNeo/uav-neo-installer.git"
+    echo "  bash uav-neo-installer/drone-student/scripts/setup.sh"
+    echo ""
+    echo "If you only need to update labs, library, or the simulator, use:"
+    echo "  bash ${SCRIPT_DIR}/update.sh"
+    echo -e "==========================================================================\e[0m"
+    echo ""
+    log_silent "ABORTED: previous installation detected"
+    log_silent "========== SETUP LOG END (ABORTED) =========="
+    exit 1
+fi
 
 log '[1/3] Select your operating system: [windows, mac, linux]'
 select PLATFORM in windows mac linux
@@ -543,6 +570,79 @@ if [ -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
     fi
 else
     check_fail "Cannot verify dependencies — virtual environment not found"
+fi
+
+# 11. WSL networking mode (Windows only)
+if [ "$PLATFORM" == 'windows' ]; then
+    WSL_VERSION="unknown"
+    WSL_NET_MODE="unknown"
+    SIM_IP="unknown"
+
+    # Detect WSL version
+    if grep -qi "microsoft" /proc/version 2>/dev/null; then
+        if grep -qi "WSL2" /proc/version 2>/dev/null; then
+            WSL_VERSION="WSL2"
+        else
+            # Could be WSL1 or WSL2 without "WSL2" in version string
+            # Check for Hyper-V features that only exist in WSL2
+            if [ -d "/sys/class/dmi" ] 2>/dev/null; then
+                WSL_VERSION="WSL2"
+            else
+                WSL_VERSION="WSL1"
+            fi
+        fi
+    fi
+
+    # Detect networking mode and resolve simulator IP
+    if [ "$WSL_VERSION" == "WSL1" ]; then
+        WSL_NET_MODE="shared (WSL1)"
+        SIM_IP="127.0.0.1"
+    elif [ "$WSL_VERSION" == "WSL2" ]; then
+        # Read default gateway
+        GW_IP=$(awk '$2 == "00000000" { hex=$3; \
+            printf "%d.%d.%d.%d", \
+            strtonum("0x"substr(hex,7,2)), strtonum("0x"substr(hex,5,2)), \
+            strtonum("0x"substr(hex,3,2)), strtonum("0x"substr(hex,1,2)) }' /proc/net/route 2>/dev/null)
+        FIRST_OCTET=$(echo "$GW_IP" | cut -d. -f1)
+        SECOND_OCTET=$(echo "$GW_IP" | cut -d. -f2)
+
+        if [ "$FIRST_OCTET" == "172" ] && [ "$SECOND_OCTET" -ge 16 ] && [ "$SECOND_OCTET" -le 31 ] 2>/dev/null; then
+            WSL_NET_MODE="NAT (Hyper-V gateway: ${GW_IP})"
+            SIM_IP="$GW_IP"
+        else
+            WSL_NET_MODE="mirrored (gateway: ${GW_IP})"
+            SIM_IP="127.0.0.1"
+        fi
+    fi
+
+    check_pass "WSL environment: ${WSL_VERSION}, networking: ${WSL_NET_MODE}"
+    log_silent "  Simulator IP will resolve to: ${SIM_IP}"
+
+    # Test UDP connectivity to simulator ports
+    if [ -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
+        source "${NEO_DIR}/drone-venv/bin/activate"
+        UDP_RESULT=$(python3 -c "
+import socket
+ip = '${SIM_IP}'
+ok = True
+for port in [5064, 5065]:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(1)
+        s.sendto(b'\\x01\\x01', (ip, port))
+        s.close()
+    except Exception as e:
+        ok = False
+        print(f'FAIL:{port}:{e}')
+if ok:
+    print('OK')
+" 2>&1)
+        if echo "$UDP_RESULT" | grep -q "OK"; then
+            check_pass "UDP send to simulator (${SIM_IP}:5064-5065) — reachable"
+        else
+            check_fail "UDP send to simulator (${SIM_IP}) — ${UDP_RESULT}"
+        fi
+    fi
 fi
 
 # Results summary
