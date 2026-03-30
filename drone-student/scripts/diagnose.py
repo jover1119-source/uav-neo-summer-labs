@@ -17,9 +17,9 @@ import sys
 
 def resolve_sim_ip():
     """Resolve the simulator IP using the same logic as drone_core_sim.py."""
-    env_ip = os.environ.get("RACECAR_SIM_IP")
+    env_ip = os.environ.get("DRONE_SIM_IP") or os.environ.get("RACECAR_SIM_IP")
     if env_ip:
-        return env_ip, "RACECAR_SIM_IP env var"
+        return env_ip, "DRONE_SIM_IP env var"
 
     try:
         with open("/proc/net/route") as f:
