@@ -164,7 +164,12 @@ elif [ "$FOLDER" == 'sim' ]; then
                     SIM_DIR="${WIN_PROFILE_WSL}/UAVNeo-Simulator"
                     log_silent "Updating simulator on Windows drive: ${SIM_DIR}"
                     rm -rf "${SIM_DIR}"
-                    rm -f "${NEO_DIR}/UAVNeo-Simulator"
+                    # NEO_DIR/UAVNeo-Simulator may be a symlink (from a prior windows
+                    # setup) or a real directory (from an older setup that cloned
+                    # in-place). Handle both.
+                    if [ -L "${NEO_DIR}/UAVNeo-Simulator" ] || [ -e "${NEO_DIR}/UAVNeo-Simulator" ]; then
+                        rm -rf "${NEO_DIR}/UAVNeo-Simulator"
+                    fi
                     log "Cloning simulator for ${PLATFORM}..."
                     run_cmd git clone -b "${PLATFORM}" --single-branch "${SIM_URL}" "${SIM_DIR}"
                     ln -sfn "${SIM_DIR}" "${NEO_DIR}/UAVNeo-Simulator"
