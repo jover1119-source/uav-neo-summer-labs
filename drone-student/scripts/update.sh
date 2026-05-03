@@ -101,7 +101,7 @@ if [ "$FOLDER" == 'labs' ]; then
                 rm -rf labs
                 # Set up labs folder w/ correct formatting
                 log "Cloning ${CURRICULUM} labs..."
-                run_cmd git clone "${CURR_URL}${CURRICULUM}-labs"
+                run_cmd git clone --depth 1 "${CURR_URL}${CURRICULUM}-labs"
                 mv "uav-neo-${CURRICULUM}-labs"/labs labs
                 rm -rf "uav-neo-${CURRICULUM}-labs"
                 cd "$SCRIPT_DIR"
@@ -119,7 +119,7 @@ elif [ "$FOLDER" == 'library' ]; then
     rm -rf library
     # Set up library folder w/ correct formatting
     log "Cloning library..."
-    run_cmd git clone "${LIB_URL}"
+    run_cmd git clone --depth 1 "${LIB_URL}"
     mv uav-neo-library/library library
     rm -rf uav-neo-library
 
@@ -171,7 +171,10 @@ elif [ "$FOLDER" == 'sim' ]; then
                         rm -rf "${NEO_DIR}/UAVNeo-Simulator"
                     fi
                     log "Cloning simulator for ${PLATFORM}..."
-                    run_cmd git clone -b "${PLATFORM}" --single-branch "${SIM_URL}" "${SIM_DIR}"
+                    # --depth 1 implies --single-branch; -b PLATFORM still selects
+                    # which branch. Drop .git/ after clone — students don't need it.
+                    run_cmd git clone --depth 1 -b "${PLATFORM}" "${SIM_URL}" "${SIM_DIR}"
+                    rm -rf "${SIM_DIR}/.git"
                     ln -sfn "${SIM_DIR}" "${NEO_DIR}/UAVNeo-Simulator"
                 else
                     # Remove current sim files
@@ -179,7 +182,8 @@ elif [ "$FOLDER" == 'sim' ]; then
 
                     # Clone file from github, format dirs
                     log "Cloning simulator for ${PLATFORM}..."
-                    run_cmd git clone -b "${PLATFORM}" --single-branch "${SIM_URL}"
+                    run_cmd git clone --depth 1 -b "${PLATFORM}" "${SIM_URL}"
+                    rm -rf UAVNeo-Simulator/.git
 
                     # Allow permissions
                     if [ "$PLATFORM" == 'mac' ]; then
