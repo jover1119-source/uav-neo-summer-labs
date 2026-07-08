@@ -629,8 +629,8 @@ fi
 # 10. Library importable from venv (sys.path wiring)
 if [ -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
     source "${NEO_DIR}/drone-venv/bin/activate"
-    if python3 -c "import drone_core, drone_utils" >/dev/null 2>&1; then
-        check_pass "Library wired into venv (drone_core, drone_utils importable)"
+    if python3 -c "import sys; sys.path.insert(0, '${DRONE_DIR}/library/simulation'); import drone_core, drone_utils, drone_core_sim" >/dev/null 2>&1; then
+        check_pass "Library wired into venv (drone_core, drone_utils, drone_core_sim importable)"
     else
         check_fail "Library not importable from venv — .pth wiring may have failed"
     fi

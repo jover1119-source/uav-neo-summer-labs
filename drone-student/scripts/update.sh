@@ -51,6 +51,23 @@ run_cmd() {
     return $exit_code
 }
 
+# Refresh library from upstream; safe unprompted since students never edit library/ (unlike labs/).
+sync_library() {
+    cd "$SCRIPT_DIR"/..
+    rm -rf library
+    log "Cloning library..."
+    run_cmd git clone --depth 1 "${LIB_URL}"
+    mv uav-neo-library/library library
+    rm -rf uav-neo-library
+    if [ -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
+        log "Reinstalling Python dependencies..."
+        source "${NEO_DIR}/drone-venv/bin/activate"
+        run_cmd pip install --upgrade pip
+        run_cmd pip install -r "${SCRIPT_DIR}/requirements.txt"
+    fi
+    cd "$SCRIPT_DIR"
+}
+
 # Capture start time for duration calculation
 UPDATE_START_TIME=$(date +%s)
 
@@ -113,23 +130,7 @@ if [ "$FOLDER" == 'labs' ]; then
     done
 elif [ "$FOLDER" == 'library' ]; then
     log '[2/3] Now updating the library folder...'
-    # Go one folder back from scripts directory
-    cd "$SCRIPT_DIR"/..
-    # Remove the existing library folder
-    rm -rf library
-    # Set up library folder w/ correct formatting
-    log "Cloning library..."
-    run_cmd git clone --depth 1 "${LIB_URL}"
-    mv uav-neo-library/library library
-    rm -rf uav-neo-library
-
-    # Reinstall Python dependencies in case requirements changed
-    if [ -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
-        log "Reinstalling Python dependencies..."
-        source "${NEO_DIR}/drone-venv/bin/activate"
-        run_cmd pip install --upgrade pip
-        run_cmd pip install -r "${SCRIPT_DIR}/requirements.txt"
-    fi
+    sync_library
 elif [ "$FOLDER" == 'sim' ]; then
     log '[2/3] Now updating the simulation folder...'
     log 'Select your operating system: [windows, mac, linux]'
@@ -304,6 +305,25 @@ if [ -f "${SCRIPT_DIR}/uav_tool.sh" ] && [ -f "${SCRIPT_DIR}/.config" ]; then
     fi
 else
     check_fail "Drone tool files missing"
+fi
+
+# Smoke-test the import path; 'drone test' only echoes config and misses a stale library.
+_lib_import() {
+    source "${NEO_DIR}/drone-venv/bin/activate" 2>/dev/null
+    python3 -c "import sys; sys.path.insert(0, '${DRONE_DIR}/library/simulation'); import drone_core, drone_utils, drone_core_sim" >/dev/null 2>&1
+}
+if [ ! -f "${NEO_DIR}/drone-venv/bin/activate" ]; then
+    check_fail "Cannot verify library imports — virtual environment not found"
+elif _lib_import; then
+    check_pass "Library imports (drone_core, drone_utils, drone_core_sim)"
+else
+    log "Library is out of sync with labs/sim; resyncing it automatically..."
+    sync_library
+    if _lib_import; then
+        check_pass "Library auto-synced and imports cleanly"
+    else
+        check_fail "Library still not importable after auto-sync — review $LOG_FILE"
+    fi
 fi
 
 # Log file errors (check for command failures logged by run_cmd)
